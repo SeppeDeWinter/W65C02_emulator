@@ -25,6 +25,27 @@ impl std::ops::BitAnd<ProcessorStatus> for u8 {
     }
 }
 
+impl std::ops::BitOr<u8> for ProcessorStatus {
+    type Output = u8;
+    fn bitor(self, rhs: u8) -> Self::Output {
+        (self as u8) | rhs 
+    }
+}
+
+impl std::ops::BitOr<ProcessorStatus> for u8 {
+    type Output = u8;
+    fn bitor(self, rhs: ProcessorStatus) -> Self::Output {
+        self | (rhs as u8)
+    }
+}
+
+impl std::ops::Not for ProcessorStatus {
+    type Output = u8;
+    fn not(self) -> Self::Output {
+        !(self as u8)
+    }
+}
+
 impl PartialEq<ProcessorStatus> for u8 {
     fn eq(&self, other: &ProcessorStatus) -> bool {
         other == self
@@ -73,152 +94,6 @@ impl AddressingMode {
             AddressingMode::ZeroPageXIndexedIndirect    => 2,
             AddressingMode::ZeroPageIndirectIndexedY    => 2,
             AddressingMode::Relative                    => 2,
-        }
-    }
-    pub fn decode(self, processor: &mut Processor) {
-        match self {
-            AddressingMode::Implied => {},
-            AddressingMode::Accumulator => {},
-            AddressingMode::Immediate => {
-                /*
-                    Data is contained in instruction
-                */
-                processor.address = processor.pc + 1;   // Data is next byte
-                processor.read_data_from_address();
-            },
-            AddressingMode::Absolute => {
-                /*  
-                    The second and third bytes of the instruction
-                    form a pointer to the data, and is stored in
-                    little endian format.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_address_from_address();
-                processor.read_data_from_address();
-            },
-            AddressingMode::AbsoluteXIndexed => {
-                /*  
-                    The second and third bytes of the instruction
-                    form a pointer to the data, and is stored in
-                    little endian format.
-                    This pointer is offset by the X register.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_address_from_address();
-                processor.address += processor.rx as u16;
-                processor.read_data_from_address();
-            },
-            AddressingMode::AbsoluteYIndexed => {
-                /*  
-                    The second and third bytes of the instruction
-                    form a pointer to the data, and is stored in
-                    little endian format.
-                    This pointer is offset by the X register.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_address_from_address();
-                processor.address += processor.ry as u16;
-                processor.read_data_from_address();
-            },
-            AddressingMode::AbsoluteIndirect => {
-                /*  
-                    The second and third byte of the instruction
-                    specify a memory location.
-                    The contents of this memory location is the low order byte of the effective address.
-                    The next memory location contains the high order byte of the effective address.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_address_from_address();
-                processor.read_address_from_address();
-                processor.read_data_from_address();     // never used given that this mode is only used by JMP
-            },
-            AddressingMode::AbsoluteXIndexedIndirect => {
-                /*
-                    The second and third byte of the instruction
-                    specify a memory location. This pointer is offset by the X register.
-                    The contents of this memory location (which is offset by the X register)
-                    is the low order byte of the effective address.
-                    The next memory location contains the high order byte of the effective address.
-                */
-                processor.address = processor.pc + 1;
-                processor.read_address_from_address();
-                processor.address += processor.rx as u16;
-                processor.read_address_from_address();
-                processor.read_data_from_address();     // never used given that this mode is only used by JMP
-            },
-            AddressingMode::ZeroPage => {
-                /*  
-                    The second byte of the instruction
-                    forms a pointer to the data, the high order byte is zero.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_zero_page_address_from_address();
-                processor.read_data_from_address();
-            },
-            AddressingMode::ZeroPageXIndexed => {
-                /*  
-                    The second byte of the instruction
-                    forms a pointer to the data, the high order byte is zero.
-                    This pointer is offset by the X register.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_zero_page_address_from_address();
-                processor.address += processor.rx as u16;
-                processor.read_data_from_address();
-            },
-            AddressingMode::ZeroPageYIndexed => {
-                /*  
-                    The second byte of the instruction
-                    forms a pointer to the data, the high order byte is zero.
-                    This pointer is offset by the Y register.
-                */ 
-                processor.address = processor.pc + 1;
-                processor.read_zero_page_address_from_address();
-                processor.address += processor.ry as u16;
-                processor.read_data_from_address();
-            },
-            AddressingMode::ZeroPageIndirect => {
-                /*  
-                    The second byte of the instruction
-                    forms a zero page pointer that points to the low order byte of the effective address.
-                */
-                processor.address = processor.pc + 1;
-                processor.read_zero_page_address_from_address();
-                processor.read_address_from_address();
-                processor.read_data_from_address();
-            },
-            AddressingMode::ZeroPageXIndexedIndirect => {
-                /*
-                    The second byte of the instruction
-                    forms a zero page pointer that points to the low order byte of the effective address.
-                    This pointer is offset by the X register.
-                */
-                processor.address = processor.pc + 1;
-                processor.read_zero_page_address_from_address();
-                processor.address += processor.rx as u16;
-                processor.read_address_from_address();
-                processor.read_data_from_address();
-            },
-            AddressingMode::ZeroPageIndirectIndexedY => {
-                /*
-                    The second byte of the instruction
-                    forms a zero page pointer that points to the low order byte of the effective address.
-                    This effective address is offset by the Y register.
-                */
-                processor.address = processor.pc + 1;
-                processor.read_zero_page_address_from_address();
-                processor.read_address_from_address();
-                processor.address += processor.ry as u16;
-                processor.read_data_from_address();
-            },
-            AddressingMode::Relative => {
-                /*
-                    The second byte of the instruction
-                    is a signed offset (one's complement) from the program counter.
-                */
-                processor.address = processor.pc + 1;
-                processor.read_data_from_address();
-            }
         }
     }
 }
@@ -288,6 +163,191 @@ pub enum Instruction {
     SED(AddressingMode),        // Set decimal mode
     SEI(AddressingMode),        // Set interrupt disable status
     NOP(AddressingMode),        // No operation
+}
+
+impl Instruction {
+    pub fn execute(self, processor: &mut Processor) {
+        match self {
+            // Load operations
+            Instruction::LDA(mode) => {
+                processor.fetch_data(&mode);
+                processor.set_ra();
+            },
+            Instruction::LDX(mode) => {
+                processor.fetch_data(&mode);
+                processor.set_rx();
+            },
+            Instruction::LDY(mode) => {
+                processor.fetch_data(&mode);
+                processor.set_ry();
+            },
+            Instruction::STA(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.ra;
+                processor.write_data_to_address();
+            },
+            Instruction::STX(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.rx;
+                processor.write_data_to_address();
+            },
+            Instruction::STY(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.ry;
+                processor.write_data_to_address();
+            },
+            Instruction::STZ(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = 0;
+                processor.write_data_to_address();
+            },
+
+            // Transfer operations
+            Instruction::TAX(_) => {
+                processor.data = processor.ra;
+                processor.set_rx();
+            },
+            Instruction::TAY(_) => {
+                processor.data = processor.ra;
+                processor.set_ry();
+            },
+            Instruction::TSX(_) => {
+                processor.data = processor.sp;
+                processor.set_rx();
+            },
+            Instruction::TXA(_) => {
+                processor.data = processor.rx;
+                processor.set_ra();
+            },
+            Instruction::TXS(_) => {
+                processor.sp = processor.rx;
+            },
+            Instruction::TYA(_) => {
+                processor.data = processor.ry;
+                processor.set_ra();
+            },
+
+            // Stack operations
+            Instruction::PHA(_) => {
+                processor.data = processor.ra;
+                processor.push_data_on_stack();
+            }
+            Instruction::PHP(_) => {
+                processor.data = processor.p;
+                processor.push_data_on_stack();
+            },
+            Instruction::PHX(_) => {
+                processor.data = processor.rx;
+                processor.push_data_on_stack();
+            },
+            Instruction::PHY(_) => {
+                processor.data = processor.ry;
+                processor.push_data_on_stack();
+            },
+            Instruction::PLA(_) => {
+                processor.pull_data_from_stack();
+                processor.set_ra();
+            },
+            Instruction::PLP(_) => {
+                processor.pull_data_from_stack();
+                processor.p = processor.data;
+            },
+            Instruction::PLX(_) => {
+                processor.pull_data_from_stack();
+                processor.set_rx();
+            },
+            Instruction::PLY(_) => {
+                processor.pull_data_from_stack();
+                processor.set_ry();
+            },
+
+            // Shift operations
+            Instruction::ASL(mode) => {
+                processor.fetch_data(&mode);
+                let last_bit = 0b10000000 & processor.data;
+                processor.data = processor.data << 1;
+                if last_bit != 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                match mode {
+                    AddressingMode::Accumulator => {
+                        processor.set_ra();
+                    },
+                    _ => {
+                        processor.write_data_to_address();
+                        if processor.data == 0 {
+                            processor.set_processor_status_flag(ProcessorStatus::Zero);
+                        } else {
+                            processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                        }
+                        if (processor.data as i8) < 0 {
+                            processor.set_processor_status_flag(ProcessorStatus::Negative);
+                        } else {
+                            processor.clear_processor_status_flag(ProcessorStatus::Negative); 
+                        }
+                    }
+                }
+            },
+            Instruction::LSR(mode) => {
+                processor.fetch_data(&mode);
+                let first_bit = 0b00000001 & processor.data;
+                processor.data = processor.data >> 1;
+                if first_bit != 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                match mode {
+                    AddressingMode::Accumulator => {
+                        processor.set_ra();
+                    },
+                    _ => {
+                        processor.write_data_to_address();
+                        processor.clear_processor_status_flag(ProcessorStatus::Negative); // a 0 is shifted into the MSB
+                        if processor.data == 0 {
+                            processor.set_processor_status_flag(ProcessorStatus::Zero);
+                        } else {
+                            processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                        }
+                    }
+                }
+            },
+            Instruction::ROL(mode) => {
+                processor.fetch_data(&mode);
+                let last_bit = 0b10000000 & processor.data;
+                processor.data = processor.data << 1;
+                // this works because the carry flag is the 0th bit of the processor status register
+                processor.data = processor.data | (processor.p & ProcessorStatus::Carry);
+                if last_bit != 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                match mode {
+                    AddressingMode::Accumulator => {
+                        processor.set_ra();
+                    },
+                    _ => {
+                        processor.write_data_to_address();
+                        if processor.data == 0 {
+                            processor.set_processor_status_flag(ProcessorStatus::Zero);
+                        } else {
+                            processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                        }
+                        if (processor.data as i8) < 0 {
+                            processor.set_processor_status_flag(ProcessorStatus::Negative);
+                        } else {
+                            processor.clear_processor_status_flag(ProcessorStatus::Negative); 
+                        }
+                    }
+                }
+            }
+
+            _ => {}
+        }
+    }
 }
 
 pub trait W65C02OpDecode {
