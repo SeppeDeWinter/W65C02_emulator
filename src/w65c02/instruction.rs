@@ -166,99 +166,120 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn execute(self, processor: &mut Processor) {
+    pub fn execute(self, processor: &mut Processor) -> u16{
         match self {
             // Load operations
             Instruction::LDA(mode) => {
                 processor.fetch_data(&mode);
                 processor.set_ra();
+                return mode.instruction_size();
             },
             Instruction::LDX(mode) => {
                 processor.fetch_data(&mode);
                 processor.set_rx();
+                return mode.instruction_size();
             },
             Instruction::LDY(mode) => {
                 processor.fetch_data(&mode);
                 processor.set_ry();
+                return mode.instruction_size();
             },
             Instruction::STA(mode) => {
                 processor.fetch_data(&mode);
                 processor.data = processor.ra;
                 processor.write_data_to_address();
+                return mode.instruction_size();
             },
             Instruction::STX(mode) => {
                 processor.fetch_data(&mode);
                 processor.data = processor.rx;
                 processor.write_data_to_address();
+                return mode.instruction_size();
             },
             Instruction::STY(mode) => {
                 processor.fetch_data(&mode);
                 processor.data = processor.ry;
                 processor.write_data_to_address();
+                return mode.instruction_size();
             },
             Instruction::STZ(mode) => {
                 processor.fetch_data(&mode);
                 processor.data = 0;
                 processor.write_data_to_address();
+                return mode.instruction_size();
             },
 
             // Transfer operations
-            Instruction::TAX(_) => {
+            Instruction::TAX(mode) => {
                 processor.data = processor.ra;
                 processor.set_rx();
+                return mode.instruction_size();
             },
-            Instruction::TAY(_) => {
+            Instruction::TAY(mode) => {
                 processor.data = processor.ra;
                 processor.set_ry();
+                return mode.instruction_size();
             },
-            Instruction::TSX(_) => {
+            Instruction::TSX(mode) => {
                 processor.data = processor.sp;
                 processor.set_rx();
+                return mode.instruction_size();
             },
-            Instruction::TXA(_) => {
+            Instruction::TXA(mode) => {
                 processor.data = processor.rx;
                 processor.set_ra();
+                return mode.instruction_size();
             },
-            Instruction::TXS(_) => {
+            Instruction::TXS(mode) => {
                 processor.sp = processor.rx;
+                return mode.instruction_size();
             },
-            Instruction::TYA(_) => {
+            Instruction::TYA(mode) => {
                 processor.data = processor.ry;
                 processor.set_ra();
+                return mode.instruction_size();
             },
 
             // Stack operations
-            Instruction::PHA(_) => {
+            Instruction::PHA(mode) => {
                 processor.data = processor.ra;
                 processor.push_data_on_stack();
+                return mode.instruction_size();
             }
-            Instruction::PHP(_) => {
+            Instruction::PHP(mode) => {
                 processor.data = processor.p;
                 processor.push_data_on_stack();
+                return mode.instruction_size();
             },
-            Instruction::PHX(_) => {
+            Instruction::PHX(mode) => {
                 processor.data = processor.rx;
                 processor.push_data_on_stack();
+                return mode.instruction_size();
             },
-            Instruction::PHY(_) => {
+            Instruction::PHY(mode) => {
                 processor.data = processor.ry;
                 processor.push_data_on_stack();
+                return mode.instruction_size();
             },
-            Instruction::PLA(_) => {
+            Instruction::PLA(mode) => {
                 processor.pull_data_from_stack();
                 processor.set_ra();
+                return mode.instruction_size();
             },
-            Instruction::PLP(_) => {
+            Instruction::PLP(mode) => {
                 processor.pull_data_from_stack();
                 processor.p = processor.data;
+                return mode.instruction_size();
             },
-            Instruction::PLX(_) => {
+            Instruction::PLX(mode) => {
                 processor.pull_data_from_stack();
                 processor.set_rx();
+                return mode.instruction_size();
             },
-            Instruction::PLY(_) => {
+            Instruction::PLY(mode) => {
                 processor.pull_data_from_stack();
                 processor.set_ry();
+                return mode.instruction_size();
             },
 
             // Shift operations
@@ -289,6 +310,7 @@ impl Instruction {
                         }
                     }
                 }
+                return mode.instruction_size();
             },
             Instruction::LSR(mode) => {
                 processor.fetch_data(&mode);
@@ -313,6 +335,7 @@ impl Instruction {
                         }
                     }
                 }
+                return mode.instruction_size();
             },
             Instruction::ROL(mode) => {
                 /*
@@ -348,6 +371,7 @@ impl Instruction {
                         }
                     }
                 }
+                return mode.instruction_size();
             },
             Instruction::ROR(mode) => {
                 /*
@@ -378,6 +402,7 @@ impl Instruction {
                         }
                     }
                 }
+                return mode.instruction_size();
             },
 
             // Logical operations
@@ -385,6 +410,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 processor.data = processor.ra & processor.data;
                 processor.set_ra();
+                return mode.instruction_size();
             },
             Instruction::BIT(mode) => {
                 processor.fetch_data(&mode);
@@ -404,16 +430,19 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Overflow);
                 }
+                return mode.instruction_size();
             },
             Instruction::EOR(mode) => {
                 processor.fetch_data(&mode);
                 processor.data = processor.ra ^ processor.data;
                 processor.set_ra();
+                return mode.instruction_size();
             },
             Instruction::ORA(mode) => {
                 processor.fetch_data(&mode);
                 processor.data = processor.ra | processor.data;
                 processor.set_ra();
+                return mode.instruction_size();
             },
             Instruction::TRB(mode) => {
                 /*
@@ -431,6 +460,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Zero);
                 }
+                return mode.instruction_size();
             },
             Instruction::TSB(mode) => {
                 /*
@@ -447,6 +477,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Zero);
                 }
+                return mode.instruction_size();
             },
 
             // Arithmetic operations
@@ -474,6 +505,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Overflow);
                 }
+                return mode.instruction_size();
             },
             Instruction::CMP(mode) => {
                 /*
@@ -489,6 +521,7 @@ impl Instruction {
                 let result = processor.ra as i8 - processor.data as i8;
                 processor.data = result as u8;
                 processor.set_ra();
+                return mode.instruction_size();
             },
             Instruction::CPX(mode) => {
                 /*
@@ -524,6 +557,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Zero);
                 }
+                return mode.instruction_size();
             },
             Instruction::CPY(mode) => {
                 /*
@@ -559,6 +593,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Zero);
                 }
+                return mode.instruction_size();
             },
             Instruction::SBC(mode) => {
                 /*
@@ -586,6 +621,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Overflow);
                 }
+                return mode.instruction_size();
             },
 
             // Increment and decrement operations
@@ -603,14 +639,17 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Negative); 
                 }
+                return mode.instruction_size();
             },
-            Instruction::DEX(_) => {
+            Instruction::DEX(mode) => {
                 processor.data = processor.rx.wrapping_sub(1);
                 processor.set_rx();
+                return mode.instruction_size();
             },
-            Instruction::DEY(_) => {
+            Instruction::DEY(mode) => {
                 processor.data = processor.ry.wrapping_sub(1);
                 processor.set_ry();
+                return mode.instruction_size();
             },
             Instruction::INC(mode) => {
                 processor.fetch_data(&mode);
@@ -626,14 +665,17 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Negative); 
                 }
+                return mode.instruction_size();
             },
-            Instruction::INX(_) => {
+            Instruction::INX(mode) => {
                 processor.data = processor.rx.wrapping_add(1);
                 processor.set_rx();
+                return mode.instruction_size();
             },
-            Instruction::INY(_) => {
+            Instruction::INY(mode) => {
                 processor.data = processor.ry.wrapping_add(1);
                 processor.set_ry();
+                return mode.instruction_size();
             },
 
             // Control flow operations
@@ -641,8 +683,9 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 let offset = processor.data as i16;
                 processor.pc = (processor.pc as i16 + offset) as u16;
-            }
-            Instruction::BRK(_) => {
+                return mode.instruction_size();
+            },
+            Instruction::BRK(mode) => {
                 /*
                     The break command causes the microprocessor to go through an inter-­
                     rupt sequence under program control. This means that the program 
@@ -659,10 +702,12 @@ impl Instruction {
                 // set interrupt disable flag
                 processor.set_processor_status_flag(ProcessorStatus::IRQDBdis);
                 processor.interrupt_vector();
+                return mode.instruction_size();
             },
             Instruction::JMP(mode) => {
                 processor.fetch_data(&mode);
                 processor.pc = processor.address;
+                return mode.instruction_size();
             },
             Instruction::JSR(mode) => {
                 /*
@@ -691,8 +736,9 @@ impl Instruction {
                 processor.push_data_on_stack();
                 // set new address
                 processor.pc = processor.address;
+                return mode.instruction_size();
             },
-            Instruction::RTI(_) => {
+            Instruction::RTI(mode) => {
                 /*
                     This instruction transfers from the stack into the microprocessor
                     the processor status and the program counter location for the 
@@ -712,8 +758,9 @@ impl Instruction {
                 processor.p = processor.data;
                 // pull program counter from stack
                 processor.pull_pc_from_stack();
+                return mode.instruction_size();
             },
-            Instruction::RTS(_) => {
+            Instruction::RTS(mode) => {
                 /*
                     This instruction loads the program count low and program count 
                     high from the stack into the program counter and increments the 
@@ -722,6 +769,7 @@ impl Instruction {
                 */
                 processor.pull_pc_from_stack();
                 processor.pc += 1;
+                return mode.instruction_size();
             },
             Instruction::BCC(mode) => {
                 processor.fetch_data(&mode);
@@ -729,6 +777,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BCS(mode) => {
                 processor.fetch_data(&mode);
@@ -736,6 +785,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BEQ(mode) => {
                 processor.fetch_data(&mode);
@@ -743,6 +793,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BMI(mode) => {
                 processor.fetch_data(&mode);
@@ -750,6 +801,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BNE(mode) => {
                 processor.fetch_data(&mode);
@@ -757,6 +809,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BPL(mode) => {
                 processor.fetch_data(&mode);
@@ -764,6 +817,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BVC(mode) => {
                 processor.fetch_data(&mode);
@@ -771,6 +825,7 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
             Instruction::BVS(mode) => {
                 processor.fetch_data(&mode);
@@ -778,34 +833,42 @@ impl Instruction {
                     let offset = processor.data as i16;
                     processor.pc = (processor.pc as i16 + offset) as u16;
                 }
+                return mode.instruction_size();
             },
 
             // Status flag operations
-            Instruction::CLC(_) => {
+            Instruction::CLC(mode) => {
                 processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                return mode.instruction_size();
             },
-            Instruction::CLD(_) => {
+            Instruction::CLD(mode) => {
                 processor.clear_processor_status_flag(ProcessorStatus::Decimal);
+                return mode.instruction_size();
             },
-            Instruction::CLI(_) => {
+            Instruction::CLI(mode) => {
                 processor.clear_processor_status_flag(ProcessorStatus::IRQDBdis);
+                return mode.instruction_size();
             },
-            Instruction::CLV(_) => {
+            Instruction::CLV(mode) => {
                 processor.clear_processor_status_flag(ProcessorStatus::Overflow);
+                return mode.instruction_size();
             },
-            Instruction::SEC(_) => {
+            Instruction::SEC(mode) => {
                 processor.set_processor_status_flag(ProcessorStatus::Carry);
+                return mode.instruction_size();
             },
-            Instruction::SED(_) => {
+            Instruction::SED(mode) => {
                 processor.set_processor_status_flag(ProcessorStatus::Decimal);
+                return mode.instruction_size();
             },
-            Instruction::SEI(_) => {
+            Instruction::SEI(mode) => {
                 processor.set_processor_status_flag(ProcessorStatus::IRQDBdis);
+                return mode.instruction_size();
             },
 
             // No operation
-            Instruction::NOP(_) => {
-                // do nothing
+            Instruction::NOP(mode) => {
+                return mode.instruction_size();
             }
         }
     }
