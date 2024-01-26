@@ -110,6 +110,31 @@ impl Processor {
         self.address = self.sp as u16;
         self.read_data_from_address();
     }
+    fn push_pc_on_stack(&mut self) {
+         // push low order byte on stack
+         self.data = (self.pc & 0x00FF) as u8;
+         self.push_data_on_stack();
+         // push high order byte on stack
+         self.data = ((self.pc & 0xFF00) >> 8) as u8;
+         self.push_data_on_stack();
+    }
+    fn pull_pc_from_stack(&mut self) {
+        // pull high order byte from stack
+        self.pull_data_from_stack();
+        self.pc = (self.data as u16) << 8;
+        // pull low order byte from stack
+        self.pull_data_from_stack();
+        self.pc = self.pc | (self.data as u16);
+    }
+    fn interrupt_vector(&mut self) {
+        self.address = 0xFFFE;
+        self.read_data_from_address();
+        let low_byte = self.data;
+        self.address = 0xFFFF;
+        self.read_data_from_address();
+        let high_byte = self.data;
+        self.pc = ((high_byte as u16) << 8) | (low_byte as u16);
+    }
     fn fetch_data(&mut self, mode: &AddressingMode) {
         match mode {
             AddressingMode::Implied => {},

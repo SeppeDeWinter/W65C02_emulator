@@ -315,6 +315,11 @@ impl Instruction {
                 }
             },
             Instruction::ROL(mode) => {
+                /*
+                    The rotate left instruction shifts either the accumulator or 
+                    addressed memory left 1 bit, with the input carry being stored 
+                    n bit 0 and with the input bit 7 being stored in the carry flags
+                */
                 processor.fetch_data(&mode);
                 let last_bit = 0b10000000 & processor.data;
                 processor.data = processor.data << 1;
@@ -343,9 +348,465 @@ impl Instruction {
                         }
                     }
                 }
-            }
+            },
+            Instruction::ROR(mode) => {
+                /*
+                    The rotate right instruction shifts either the accumulator or
+                    addressed memory right 1 bit with bit 0 shifted into the carry
+                    and carry shifted into bit 7.
+                */
+                processor.fetch_data(&mode);
+                let first_bit = 0b00000001 & processor.data;
+                processor.data = processor.data >> 1;
+                processor.data = processor.data | ((processor.p & ProcessorStatus::Carry) << 7);
+                if first_bit != 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                match mode {
+                    AddressingMode::Accumulator => {
+                        processor.set_ra();
+                    },
+                    _ => {
+                        processor.write_data_to_address();
+                        processor.clear_processor_status_flag(ProcessorStatus::Negative); // a 0 is shifted into the MSB
+                        if processor.data == 0 {
+                            processor.set_processor_status_flag(ProcessorStatus::Zero);
+                        } else {
+                            processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                        }
+                    }
+                }
+            },
 
-            _ => {}
+            // Logical operations
+            Instruction::AND(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.ra & processor.data;
+                processor.set_ra();
+            },
+            Instruction::BIT(mode) => {
+                processor.fetch_data(&mode);
+                let result = processor.ra & processor.data;
+                if result == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+                if (result as i8) < 8 {
+                    processor.set_processor_status_flag(ProcessorStatus::Negative);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Negative);
+                }
+                if (result & 0b01000000) != 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Overflow);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Overflow);
+                }
+            },
+            Instruction::EOR(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.ra ^ processor.data;
+                processor.set_ra();
+            },
+            Instruction::ORA(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.ra | processor.data;
+                processor.set_ra();
+            },
+            Instruction::TRB(mode) => {
+                /*
+                    This instruction tests and resets bits in memory, 
+                    using the accumulator for both a test mask, and a reset mask. 
+                    It performs a logical AND between the inverted bits of the 
+                    accumulator and the bits in memory, storing the result back into 
+                    memory.
+                */
+                processor.fetch_data(&mode);
+                processor.data = !processor.ra & processor.data;
+                processor.write_data_to_address();
+                if processor.data == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+            },
+            Instruction::TSB(mode) => {
+                /*
+                    This instruction tests and sets bits in memory, 
+                    using the accumulator for both a test mask, and a set mask. 
+                    It performs a logical OR between the bits of the accumulator
+                    and the bits in memory, storing the result back into memory.
+                */
+                processor.fetch_data(&mode);
+                processor.data = processor.ra | processor.data;
+                processor.write_data_to_address();
+                if processor.data == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+            },
+
+            // Arithmetic operations
+            Instruction::ADC(mode) => {
+                /*
+                    This instruction adds the value of memory and carry from
+                    the previous operation to the value of the accumulator and
+                    stores the result in the accumulator.
+                */
+                processor.fetch_data(&mode);
+                let result = processor.ra as u16
+                    + processor.data as u16
+                    + processor.p as u16 & ProcessorStatus::Carry as u16;
+                processor.data = result as u8;
+                processor.set_ra();
+                if ( result > 0xFF ) |
+                   ( result > 99 && ( processor.p & ProcessorStatus::Decimal != 0 ) ) {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                if (( result as i16 ) >  127) |
+                   (( result as i16 ) < -128) {
+                    processor.set_processor_status_flag(ProcessorStatus::Overflow);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Overflow);
+                }
+            },
+            Instruction::CMP(mode) => {
+                /*
+                    This instruction subtracts the contents of memory from the 
+                    contents of the accumulator.
+                */
+                processor.fetch_data(&mode);
+                if processor.data <= processor.ra {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                let result = processor.ra as i8 - processor.data as i8;
+                processor.data = result as u8;
+                processor.set_ra();
+            },
+            Instruction::CPX(mode) => {
+                /*
+                    This instruction subtracts the value of the addressed
+                    memory location from the content of index register X
+                    using the adder but does not store the result; therefore,
+                    its only use is to set the N, Z and C flags to allow for
+                    comparison between the index register X and the value in memory.
+                    
+                    It causes the carry to be set on if the absolute value of the index
+                    register X is equal to or greater than the data from memory.
+
+                    If the results of the subtraction contain a bit 7, 
+                    then the N flag is set, if not, it is reset. 
+                    
+                    If the value in memory is equal to the value in index register X,
+                    the Z flag is set, otherwise it is reset.
+                */
+                processor.fetch_data(&mode);
+                if processor.rx >= processor.data {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                let result = processor.rx as i8 - processor.data as i8;
+                if (result as i8) < 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Negative);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Negative);
+                }
+                if result == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+            },
+            Instruction::CPY(mode) => {
+                /*
+                    This instruction subtracts the value of the addressed
+                    memory location from the content of index register Y
+                    using the adder but does not store the result; therefore,
+                    its only use is to set the N, Z and C flags to allow for
+                    comparison between the index register Y and the value in memory.
+                    
+                    It causes the carry to be set on if the absolute value of the index
+                    register Y is equal to or greater than the data from memory.
+
+                    If the results of the subtraction contain a bit 7, 
+                    then the N flag is set, if not, it is reset. 
+                    
+                    If the value in memory is equal to the value in index register Y,
+                    the Z flag is set, otherwise it is reset.
+                */
+                processor.fetch_data(&mode);
+                if processor.ry >= processor.data {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                let result = processor.ry as i8 - processor.data as i8;
+                if (result as i8) < 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Negative);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Negative);
+                }
+                if result == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+            },
+            Instruction::SBC(mode) => {
+                /*
+                    This instruction subtracts the value of memory and borrow from
+                    the value of the accumulator, using two's complement arithmetic,
+                    and stores the result in the accumulator. 
+                    Borrow is defined as the carry flag complemented; therefore, a
+                    resultant carry flag indicates that a borrow has not occurred.
+                */
+                processor.fetch_data(&mode);
+                let c = (!processor.p & ProcessorStatus::Carry) as i16;
+                let result = processor.ra as i16
+                    - processor.data as i16
+                    - c;
+                processor.data = result as u8;
+                processor.set_ra();
+
+                if result >= 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Carry);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Carry);
+                }
+                if result > 127 || result < -128 {
+                    processor.set_processor_status_flag(ProcessorStatus::Overflow);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Overflow);
+                }
+            },
+
+            // Increment and decrement operations
+            Instruction::DEC(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.data.wrapping_sub(1);
+                processor.write_data_to_address();
+                if processor.data == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+                if (processor.data as i8) < 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Negative);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Negative); 
+                }
+            },
+            Instruction::DEX(_) => {
+                processor.data = processor.rx.wrapping_sub(1);
+                processor.set_rx();
+            },
+            Instruction::DEY(_) => {
+                processor.data = processor.ry.wrapping_sub(1);
+                processor.set_ry();
+            },
+            Instruction::INC(mode) => {
+                processor.fetch_data(&mode);
+                processor.data = processor.data.wrapping_add(1);
+                processor.write_data_to_address();
+                if processor.data == 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Zero);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Zero);
+                }
+                if (processor.data as i8) < 0 {
+                    processor.set_processor_status_flag(ProcessorStatus::Negative);
+                } else {
+                    processor.clear_processor_status_flag(ProcessorStatus::Negative); 
+                }
+            },
+            Instruction::INX(_) => {
+                processor.data = processor.rx.wrapping_add(1);
+                processor.set_rx();
+            },
+            Instruction::INY(_) => {
+                processor.data = processor.ry.wrapping_add(1);
+                processor.set_ry();
+            },
+
+            // Control flow operations
+            Instruction::BRA(mode) => {
+                processor.fetch_data(&mode);
+                let offset = processor.data as i16;
+                processor.pc = (processor.pc as i16 + offset) as u16;
+            }
+            Instruction::BRK(_) => {
+                /*
+                    The break command causes the microprocessor to go through an inter-­
+                    rupt sequence under program control. This means that the program 
+                    counter of the second byte after the BRK. is automatically stored
+                    on the stack along with the processor status at the beginning of
+                    the break instruction. The microprocessor then transfers control
+                    to the interrupt vector.
+                */
+                processor.pc = processor.pc + 2;
+                processor.push_pc_on_stack();
+                // push processor status on stack
+                processor.data = processor.p;
+                processor.push_data_on_stack();
+                // set interrupt disable flag
+                processor.set_processor_status_flag(ProcessorStatus::IRQDBdis);
+                processor.interrupt_vector();
+            },
+            Instruction::JMP(mode) => {
+                processor.fetch_data(&mode);
+                processor.pc = processor.address;
+            },
+            Instruction::JSR(mode) => {
+                /*
+                    This instruction transfers control of the program counter to a
+                    subroutine location but leaves a return pointer on the stack to
+                    allow the user to return to perform the next instruction in the
+                    main program after the subroutine is complete.
+
+                    To accomplish this, JSR instruction stores the program counter
+                    address which points to the last byte of the jump instruc­tion
+                    onto the stack using the stack pointer. The stack byte contains
+                    the program count high first, followed by program count low.
+                    The JSR then transfers the addresses following the jump
+                    instruction to the program counter low and the program counter
+                    high, thereby directing the program to begin at that new address.
+                    
+                    The JSR instruction affects no flags, causes the stack pointer to
+                    be decremented by 2 and substitutes new values into the program
+                    counter low and the program counter high.
+                */
+                processor.fetch_data(&mode);
+                processor.pc += 2;
+                processor.push_pc_on_stack();
+                // push processor status on stack
+                processor.data = processor.p;
+                processor.push_data_on_stack();
+                // set new address
+                processor.pc = processor.address;
+            },
+            Instruction::RTI(_) => {
+                /*
+                    This instruction transfers from the stack into the microprocessor
+                    the processor status and the program counter location for the 
+                    instruction which was interrupted. By virtue of the interrupt 
+                    having stored this data before executing the instruction and 
+                    the fact that the RTI reinitializes the microprocessor to the 
+                    same state as when it was interrupted, the combination of 
+                    interrupt plus RTI allows truly reentrant coding.
+                    
+                    The RTI instruction reinitializes all flags to the position to
+                    the point they were at the time the interrupt was taken and sets
+                    the program counter back to its pre-interrupt state. 
+                    It affects no other registers in the microprocessor.
+                */
+                // pull processor status from stack
+                processor.pull_data_from_stack();
+                processor.p = processor.data;
+                // pull program counter from stack
+                processor.pull_pc_from_stack();
+            },
+            Instruction::RTS(_) => {
+                /*
+                    This instruction loads the program count low and program count 
+                    high from the stack into the program counter and increments the 
+                    program counter so that it points to the instruction following 
+                    the JSR. The stack pointer is adjusted by incrementing it twice.
+                */
+                processor.pull_pc_from_stack();
+                processor.pc += 1;
+            },
+            Instruction::BCC(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Carry == 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BCS(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Carry != 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BEQ(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Zero != 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BMI(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Negative != 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BNE(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Zero == 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BPL(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Negative == 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BVC(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Overflow == 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+            Instruction::BVS(mode) => {
+                processor.fetch_data(&mode);
+                if processor.p & ProcessorStatus::Overflow != 0 {
+                    let offset = processor.data as i16;
+                    processor.pc = (processor.pc as i16 + offset) as u16;
+                }
+            },
+
+            // Status flag operations
+            Instruction::CLC(_) => {
+                processor.clear_processor_status_flag(ProcessorStatus::Carry);
+            },
+            Instruction::CLD(_) => {
+                processor.clear_processor_status_flag(ProcessorStatus::Decimal);
+            },
+            Instruction::CLI(_) => {
+                processor.clear_processor_status_flag(ProcessorStatus::IRQDBdis);
+            },
+            Instruction::CLV(_) => {
+                processor.clear_processor_status_flag(ProcessorStatus::Overflow);
+            },
+            Instruction::SEC(_) => {
+                processor.set_processor_status_flag(ProcessorStatus::Carry);
+            },
+            Instruction::SED(_) => {
+                processor.set_processor_status_flag(ProcessorStatus::Decimal);
+            },
+            Instruction::SEI(_) => {
+                processor.set_processor_status_flag(ProcessorStatus::IRQDBdis);
+            },
+
+            // No operation
+            Instruction::NOP(_) => {
+                // do nothing
+            }
         }
     }
 }
