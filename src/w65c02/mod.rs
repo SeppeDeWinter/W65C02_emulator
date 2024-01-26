@@ -15,6 +15,38 @@ pub struct Processor {
 }
 
 impl Processor {
+    pub fn new(memory: [u8; 0xFFFF]) -> Processor {
+        let mut processor = Self {
+            ra: 0,
+            rx: 0,
+            ry: 0,
+            sp: 0,
+            pc: 0,
+            p: 0,
+            rwb: false,
+            address: 0,
+            data: 0,
+            memory: memory
+        };
+        processor.reset_vector();
+        processor
+    }
+    pub fn tick(&mut self) {
+        // fetch instruction
+        self.address = self.pc;
+        self.read_data_from_address();
+        let opcode = self.data;
+        // decode instruction
+        let instruction = Processor::op_decode(opcode);
+        match instruction {
+            Some(instruction) => {
+                self.pc += instruction.execute(self);
+            },
+            None => {
+                self.pc += 1;
+            }
+        }
+    }
     /// Read data from the address.
     /// the processor's data is set to the data at the address in memory
     fn read_data_from_address(&mut self) {
@@ -131,6 +163,15 @@ impl Processor {
         self.read_data_from_address();
         let low_byte = self.data;
         self.address = 0xFFFF;
+        self.read_data_from_address();
+        let high_byte = self.data;
+        self.pc = ((high_byte as u16) << 8) | (low_byte as u16);
+    }
+    fn reset_vector(&mut self) {
+        self.address = 0xFFFC;
+        self.read_data_from_address();
+        let low_byte = self.data;
+        self.address = 0xFFFD;
         self.read_data_from_address();
         let high_byte = self.data;
         self.pc = ((high_byte as u16) << 8) | (low_byte as u16);
@@ -281,6 +322,7 @@ impl Processor {
             }
         }
     }
+
 }
 
 impl W65C02OpDecode for Processor {}
