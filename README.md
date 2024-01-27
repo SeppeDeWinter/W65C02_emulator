@@ -3,6 +3,8 @@
 A WDC 65C02 emulator written in Rust.
 This project is a work in progress.
 
+**Warning: This project is not yet complete, and is not ready for use. It still contains many bugs!**
+
 ## Usage
 
 ```bash
