@@ -47,7 +47,7 @@ vasm6502_oldstyle -c02 -Fbin test.s
 
 ```
 
-Results in the following debug output from the emulator:
+Results in the following debug output from the emulator (Press enter to step through the program):
 
 ```bash
 PC		0011
