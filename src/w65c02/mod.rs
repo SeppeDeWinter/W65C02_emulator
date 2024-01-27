@@ -1,5 +1,15 @@
 pub mod instruction;
 use crate::w65c02::instruction::{W65C02OpDecode, ProcessorStatus, AddressingMode};
+use crossterm::{terminal::{ClearType, Clear}, QueueableCommand, cursor::{MoveTo, Hide}};
+use std::io::{stdout, Write};
+
+pub fn clear_screen() {
+    let mut out = stdout();
+    out.queue(Hide).unwrap();
+    out.queue(Clear(ClearType::All)).unwrap();
+    out.queue(MoveTo(0, 0)).unwrap();
+    out.flush().unwrap();
+} 
 
 pub struct Processor {
     ra: u8,                 // Accumulator
@@ -11,11 +21,11 @@ pub struct Processor {
     rwb: bool,              // Read/Write
     address: u16,           // Address
     data: u8,               // Data
-    memory: [u8; 0xFFFF]    // 65k of memory
+    memory: [u8; 0x10000]    // 65k of memory
 }
 
 impl Processor {
-    pub fn new(memory: [u8; 0xFFFF]) -> Processor {
+    pub fn new(memory: [u8; 0x10000]) -> Processor {
         let mut processor = Self {
             ra: 0,
             rx: 0,
@@ -31,7 +41,7 @@ impl Processor {
         processor.reset_vector();
         processor
     }
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, debug_mode: bool) {
         // fetch instruction
         self.address = self.pc;
         self.read_data_from_address();
@@ -45,6 +55,44 @@ impl Processor {
             None => {
                 self.pc += 1;
             }
+        }
+        if debug_mode {
+            clear_screen();
+            println!("PC\t\t{:04x}", self.pc);
+            println!("RA\t\t{:02x}\t{}", self.ra, self.ra);
+            println!("RX\t\t{:02x}\t{}", self.rx, self.rx);
+            println!("RY\t\t{:02x}\t{}", self.ry, self.ry);
+            println!("SP\t\t{:04x}", self.sp);
+            println!("P\t\t{:04x}", self.p);
+            println!("Address\t\t{:04x}", self.address);
+            println!("Data\t\t{:02x}\t{}", self.data, self.data);
+            println!("Instruction\t{:?}", Processor::op_decode(opcode));
+            println!();
+            println!("Memory:");
+            // print non zero memory positions, 16 bytes per line
+            let mut lines_to_print: Vec<usize> = Vec::new();
+            for i in 0..self.memory.len() {
+                let current_line = i / 16;
+                if self.memory[i] != 0 {
+                    if !lines_to_print.contains(&current_line) {
+                        lines_to_print.push(current_line);
+                    }
+                }
+            }
+            let mut previous_line = 0;
+            for line in lines_to_print {
+                if (line != previous_line + 1) & (line != 0){
+                    println!("...");
+                }
+                print!("{:04x}:\t", line * 16);
+                for i in 0..16 {
+                    print!("{:02x} ", self.memory[line * 16 + i]);
+                }
+                previous_line = line;
+                println!();
+            }
+
+
         }
     }
     /// Read data from the address.
@@ -135,7 +183,7 @@ impl Processor {
     fn push_data_on_stack(&mut self) {
         self.address = self.sp as u16;
         self.write_data_to_address();
-        self.sp -= 1;
+        self.sp = self.sp.wrapping_sub(1);
     }
     fn pull_data_from_stack(&mut self) {
         self.sp += 1;

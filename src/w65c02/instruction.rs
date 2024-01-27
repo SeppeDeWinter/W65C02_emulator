@@ -57,7 +57,7 @@ impl PartialEq<u8> for ProcessorStatus {
         self == other
     }
 }
-
+#[derive(Debug)]
 pub enum AddressingMode {
     Implied,
     Accumulator,                // A
@@ -97,7 +97,7 @@ impl AddressingMode {
         }
     }
 }
-
+#[derive(Debug)]
 pub enum Instruction {
     LDA(AddressingMode),        // Load accumulator from memory
     LDX(AddressingMode),        // Load X from memory
@@ -164,7 +164,6 @@ pub enum Instruction {
     SEI(AddressingMode),        // Set interrupt disable status
     NOP(AddressingMode),        // No operation
 }
-
 impl Instruction {
     pub fn execute(self, processor: &mut Processor) -> u16{
         match self {
@@ -488,9 +487,9 @@ impl Instruction {
                     stores the result in the accumulator.
                 */
                 processor.fetch_data(&mode);
-                let result = processor.ra as u16
-                    + processor.data as u16
-                    + processor.p as u16 & ProcessorStatus::Carry as u16;
+                let result = ( processor.ra as u16 )
+                    .wrapping_add(  processor.data as u16 )
+                    .wrapping_add(  processor.p as u16 & ProcessorStatus::Carry as u16 );
                 processor.data = result as u8;
                 processor.set_ra();
                 if ( result > 0xFF ) |
@@ -518,7 +517,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Carry);
                 }
-                let result = processor.ra as i8 - processor.data as i8;
+                let result = (processor.ra as i8).wrapping_sub(processor.data as i8);
                 processor.data = result as u8;
                 processor.set_ra();
                 return mode.instruction_size();
@@ -546,7 +545,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Carry);
                 }
-                let result = processor.rx as i8 - processor.data as i8;
+                let result = (processor.rx as i8).wrapping_sub(processor.data as i8);
                 if (result as i8) < 0 {
                     processor.set_processor_status_flag(ProcessorStatus::Negative);
                 } else {
@@ -582,7 +581,7 @@ impl Instruction {
                 } else {
                     processor.clear_processor_status_flag(ProcessorStatus::Carry);
                 }
-                let result = processor.ry as i8 - processor.data as i8;
+                let result = (processor.ry as i8).wrapping_sub(processor.data as i8);
                 if (result as i8) < 0 {
                     processor.set_processor_status_flag(ProcessorStatus::Negative);
                 } else {
@@ -605,9 +604,9 @@ impl Instruction {
                 */
                 processor.fetch_data(&mode);
                 let c = (!processor.p & ProcessorStatus::Carry) as i16;
-                let result = processor.ra as i16
-                    - processor.data as i16
-                    - c;
+                let result = (processor.ra as i16)
+                    .wrapping_sub(processor.data as i16)
+                    .wrapping_sub(c);
                 processor.data = result as u8;
                 processor.set_ra();
 
@@ -682,7 +681,7 @@ impl Instruction {
             Instruction::BRA(mode) => {
                 processor.fetch_data(&mode);
                 let offset = processor.data as i16;
-                processor.pc = (processor.pc as i16 + offset) as u16;
+                processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 return mode.instruction_size();
             },
             Instruction::BRK(mode) => {
@@ -694,7 +693,7 @@ impl Instruction {
                     the break instruction. The microprocessor then transfers control
                     to the interrupt vector.
                 */
-                processor.pc = processor.pc + 2;
+                processor.pc = processor.pc.wrapping_add(2);
                 processor.push_pc_on_stack();
                 // push processor status on stack
                 processor.data = processor.p;
@@ -707,7 +706,7 @@ impl Instruction {
             Instruction::JMP(mode) => {
                 processor.fetch_data(&mode);
                 processor.pc = processor.address;
-                return mode.instruction_size();
+                return 0;
             },
             Instruction::JSR(mode) => {
                 /*
@@ -729,7 +728,7 @@ impl Instruction {
                     counter low and the program counter high.
                 */
                 processor.fetch_data(&mode);
-                processor.pc += 2;
+                processor.pc = processor.pc.wrapping_add(2);
                 processor.push_pc_on_stack();
                 // push processor status on stack
                 processor.data = processor.p;
@@ -768,14 +767,14 @@ impl Instruction {
                     the JSR. The stack pointer is adjusted by incrementing it twice.
                 */
                 processor.pull_pc_from_stack();
-                processor.pc += 1;
+                processor.pc = processor.pc.wrapping_add(1);
                 return mode.instruction_size();
             },
             Instruction::BCC(mode) => {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Carry == 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -783,7 +782,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Carry != 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -791,7 +790,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Zero != 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -799,7 +798,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Negative != 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -807,7 +806,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Zero == 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -815,7 +814,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Negative == 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -823,7 +822,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Overflow == 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
@@ -831,7 +830,7 @@ impl Instruction {
                 processor.fetch_data(&mode);
                 if processor.p & ProcessorStatus::Overflow != 0 {
                     let offset = processor.data as i16;
-                    processor.pc = (processor.pc as i16 + offset) as u16;
+                    processor.pc = (processor.pc as i16).wrapping_add(offset) as u16;
                 }
                 return mode.instruction_size();
             },
