@@ -50,8 +50,6 @@ vasm6502_oldstyle -c02 -Fbin test.s
 Results in the following debug output from the emulator:
 
 ```bash
-
-```bash
 PC		0011
 RA		59	89
 RX		37	55
